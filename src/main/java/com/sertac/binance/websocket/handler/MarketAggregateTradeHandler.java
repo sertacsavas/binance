@@ -3,6 +3,7 @@ package com.sertac.binance.websocket.handler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sertac.binance.currency.util.CurrencyUtil;
+import com.sertac.binance.sound.TextToSpeechService;
 import com.sertac.binance.websocket.config.ConsoleLogConfig;
 import com.sertac.binance.websocket.model.AggregateTradeEvent;
 import org.springframework.web.socket.TextMessage;
@@ -20,6 +21,8 @@ public class MarketAggregateTradeHandler extends TextWebSocketHandler {
     private BigDecimal minimumQuantityToPrintLog;
     private Integer resetSumDataIntervalMs;
 
+    private BigDecimal minimumQuantityToRead;
+
     private Date sumDataUpdateDate;
 
     private BigDecimal sumOfBought = BigDecimal.ZERO;
@@ -27,10 +30,11 @@ public class MarketAggregateTradeHandler extends TextWebSocketHandler {
 
     private boolean isSumUpdated;
 
-    public MarketAggregateTradeHandler(BigDecimal minimumQuantityToPrintLog, Integer resetSumDataIntervalMs) {
+    public MarketAggregateTradeHandler(BigDecimal minimumQuantityToPrintLog, Integer resetSumDataIntervalMs, BigDecimal minimumQuantityToRead) {
 
         this.minimumQuantityToPrintLog = minimumQuantityToPrintLog;
         this.resetSumDataIntervalMs = resetSumDataIntervalMs;
+        this.minimumQuantityToRead = minimumQuantityToRead;
     }
 
     @Override
@@ -43,6 +47,30 @@ public class MarketAggregateTradeHandler extends TextWebSocketHandler {
         setSumDataByInterval();
         addToSum(aggregateTradeEvent);
         printLog(aggregateTradeEvent);
+        playSound(aggregateTradeEvent);
+    }
+
+    private void playSound(AggregateTradeEvent aggregateTradeEvent) {
+        if(aggregateTradeEvent.getQuantity().compareTo(minimumQuantityToRead) >= 0) {
+            StringBuilder textToRead = new StringBuilder();
+            textToRead.append(aggregateTradeEvent.isBuyerMarketMaker() ? "SOLD" : "BOUGHT");
+            textToRead.append(", ");
+            //textToRead.append(formatBigDecimalForReading(aggregateTradeEvent.getQuantity()));
+            textToRead.append(aggregateTradeEvent.getQuantity().divide(new BigDecimal(1000)).intValue());
+            textToRead.append("K, ");
+
+            //textToRead.append(formatBigDecimalForReading(aggregateTradeEvent.getPrice()));
+            textToRead.append((aggregateTradeEvent.getPrice().subtract(new BigDecimal(aggregateTradeEvent.getPrice().intValue()))).multiply(new BigDecimal(100)).intValue());
+
+
+            TextToSpeechService.read(textToRead.toString());
+        }
+    }
+
+    private String formatBigDecimalForReading(BigDecimal bigDecimal) {
+        DecimalFormat decimalFormat = new DecimalFormat("#,###");
+
+        return decimalFormat.format(bigDecimal);
     }
 
     private void setSumDataByInterval() {
